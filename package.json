@@ -1,0 +1,9 @@
+{
+  "name": "mdp-clt-solver",
+  "version": "1.0.0",
+  "description": "Classical Laminate Theory Solver with Ashby MSI and AI Material Match",
+  "private": true,
+  "engines": {
+    "node": ">=18"
+  }
+}

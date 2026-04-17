@@ -1,0 +1,630 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CLT Solver — Classical Laminate Theory Analysis</title>
+  <meta name="description"
+        content="Professional CLT solver with D-matrix analysis, Ashby material selection indices, custom formula mode, and AI material matching." />
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Work+Sans:ital,wght@0,100..900;1,100..900&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet" />
+
+  <link rel="stylesheet" href="style.css" />
+</head>
+
+<body>
+
+<canvas id="app-canvas"></canvas>
+
+<!-- ══════════════════════════════════════
+     HEADER
+══════════════════════════════════════ -->
+<header class="site-header" role="banner">
+  <div class="container header-inner">
+    <div class="brand">
+      <h1 class="site-title">CLT Solver</h1>
+      <p class="site-subtitle">Classical Laminate Theory · Ashby MSI · AI Material Match</p>
+    </div>
+    <div class="header-right">
+
+      <!-- Step progress indicator -->
+      <div class="step-bar" id="step-bar" aria-label="Progress">
+        <div class="step-dot step-dot-active" data-step="1">
+          <span class="step-num">1</span>
+          <span class="step-label">Configure</span>
+        </div>
+        <div class="step-conn"></div>
+        <div class="step-dot" data-step="2">
+          <span class="step-num">2</span>
+          <span class="step-label">Results</span>
+        </div>
+        <div class="step-conn"></div>
+        <div class="step-dot" data-step="3">
+          <span class="step-num">3</span>
+          <span class="step-label">AI Match</span>
+        </div>
+      </div>
+
+      <a href="landing.html" class="back-home">← Home</a>
+    </div>
+  </div>
+</header>
+
+<!-- ══════════════════════════════════════
+     MAIN
+══════════════════════════════════════ -->
+<main>
+  <div class="solver-outer">
+    <aside class="viz-sidebar" id="viz-sidebar">
+      <canvas id="eng-canvas"></canvas>
+    </aside>
+    <div class="step-container">
+
+    <!-- ════════════════════════════════════
+         STEP 1 — CONFIGURE
+    ════════════════════════════════════ -->
+    <section id="step-1" class="step step-active">
+
+      <!-- Ply Configuration -->
+      <div class="card" id="ply-card">
+        <div class="card-header">
+          <h2 class="card-title">
+            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                 stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <rect x="2" y="2"   width="20" height="5" rx="1"/>
+              <rect x="2" y="9.5" width="20" height="5" rx="1"/>
+              <rect x="2" y="17"  width="20" height="5" rx="1"/>
+            </svg>
+            Ply Configuration
+          </h2>
+          <button id="btn-add-ply" onclick="addLayer()" aria-label="Add new ply">
+            <svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                 stroke-width="2" stroke-linecap="round" aria-hidden="true">
+              <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+            </svg>
+            Add Ply
+          </button>
+        </div>
+        <div class="field-legend" role="row">
+          <span>t (mm)</span><span>θ (°)</span>
+          <span>E₁ (GPa)</span><span>E₂ (GPa)</span>
+          <span>G₁₂ (GPa)</span><span>ν₁₂</span><span>ν₂₁</span>
+          <span></span>
+        </div>
+        <div id="layers-container" role="list"></div>
+      </div>
+
+      <!-- Analysis Settings -->
+      <div class="card" id="scenario-card">
+        <div class="section-label">
+          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+               stroke-width="1.8" stroke-linecap="round" aria-hidden="true">
+            <path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/>
+          </svg>
+          Analysis Settings
+        </div>
+
+        <div class="scenario-section">
+
+          <!-- Density — always needed for MSI -->
+          <div class="settings-row">
+            <div class="field-group">
+              <label class="field-label" for="inp-rho">Laminate Density ρ (kg/m³)</label>
+              <input type="number" id="inp-rho" value="1600" min="100" step="10" />
+            </div>
+          </div>
+
+          <div class="scenario-header">
+            <label class="field-label" for="inp-scenario">Structural Scenario (MSI)</label>
+            <button class="advanced-toggle" id="btn-advanced"
+                    onclick="toggleAdvanced()" aria-expanded="false" aria-controls="advanced-panel">
+              Advanced
+            </button>
+          </div>
+
+          <select id="inp-scenario" class="scenario-select"
+                  onchange="onScenarioChange()"
+                  aria-label="Select MSI structural scenario">
+            <!-- Populated by buildScenarioSelect() -->
+          </select>
+
+          <!-- Dynamic extra inputs -->
+          <div class="extra-inputs-grid">
+            <div class="extra-input-group" id="group-cm" aria-hidden="true">
+              <label class="field-label" for="inp-cm">Material Cost Cₘ ($/kg)</label>
+              <input id="inp-cm" type="number" value="50" step="1" min="0.01" placeholder="e.g. 50" disabled />
+            </div>
+            <div class="extra-input-group" id="group-sigma" aria-hidden="true">
+              <label class="field-label" for="inp-sigf">
+                Allowable Stress σ (MPa)
+                <span class="user-supplied-tag">[user-supplied]</span>
+              </label>
+              <input id="inp-sigf" type="number" value="1500" step="50" min="0" placeholder="e.g. 1500" disabled />
+            </div>
+            <div class="extra-input-group" id="group-alpha" aria-hidden="true">
+              <label class="field-label" for="inp-alpha">Thermal Exp. α (1/K)</label>
+              <input id="inp-alpha" type="number" value="0.04" step="0.01" min="0" placeholder="e.g. 0.04" disabled />
+            </div>
+            <div class="extra-input-group" id="group-kappa" aria-hidden="true">
+              <label class="field-label" for="inp-kappa">Conductivity κ (W/m·K)</label>
+              <input id="inp-kappa" type="number" value="1" step="0.1" min="0" placeholder="e.g. 1" disabled />
+            </div>
+            <div class="extra-input-group" id="group-cp" aria-hidden="true">
+              <label class="field-label" for="inp-cp">Specific Heat Cₚ (J/kg·K)</label>
+              <input id="inp-cp" type="number" value="500" step="10" min="0" placeholder="e.g. 500" disabled />
+            </div>
+          </div>
+
+          <!-- Advanced custom formula panel -->
+          <div class="advanced-panel hidden" id="advanced-panel"
+               role="region" aria-label="Custom MSI formula">
+            <div class="advanced-inner">
+              <label class="field-label" for="inp-custom-formula">
+                Custom MSI Formula
+                <span class="formula-tokens">Tokens: E, sigma, rho, Cm, alpha, kappa, Cp</span>
+              </label>
+              <input id="inp-custom-formula" type="text" class="formula-input"
+                     placeholder="e.g. E^(1/2) / rho"
+                     oninput="validateCustomFormula(this)"
+                     aria-describedby="formula-error"
+                     autocomplete="off" spellcheck="false" />
+              <p class="formula-error hidden" id="formula-error" role="alert"></p>
+            </div>
+          </div>
+
+        </div><!-- /.scenario-section -->
+
+        <!-- Run button -->
+        <div class="run-section">
+          <p class="run-hint">Configure plies and scenario, then run the full CLT + MSI analysis.</p>
+          <button id="btn-run" onclick="runAnalysis()">Run CLT Analysis</button>
+        </div>
+      </div>
+
+    </section><!-- /#step-1 -->
+
+
+    <!-- ════════════════════════════════════
+         STEP 2 — RESULTS
+    ════════════════════════════════════ -->
+    <section id="step-2" class="step">
+
+      <div class="step-nav">
+        <button class="btn-step-back" onclick="goToStep(1)">← Edit Inputs</button>
+        <span class="step-nav-title">D-Matrix &amp; Ashby Results</span>
+      </div>
+
+      <!-- D-Matrix card -->
+      <div class="card" id="results-card">
+        <div class="section-label">
+          D-Matrix Results <span class="unit-note">(N·m)</span>
+        </div>
+        <div class="result-row" role="group" aria-label="Bending stiffness">
+          <div class="result-item">
+            <label class="result-label">D<sub>x</sub></label>
+            <span id="res-dx" class="result-value" aria-live="polite">—</span>
+          </div>
+          <div class="result-item">
+            <label class="result-label">D<sub>y</sub></label>
+            <span id="res-dy" class="result-value" aria-live="polite">—</span>
+          </div>
+          <div class="result-item">
+            <label class="result-label">D<sub>xy</sub></label>
+            <span id="res-dxy" class="result-value accent" aria-live="polite">—</span>
+          </div>
+        </div>
+        <div class="derived-row" role="group" aria-label="Derived moduli">
+          <div class="derived-item">
+            <label class="result-label">E<sub>eff</sub> <span class="unit-note">(in-plane)</span></label>
+            <span id="res-eeff" class="result-value-sm" aria-live="polite">—</span>
+          </div>
+          <div class="derived-item">
+            <label class="result-label">E<sub>b</sub> <span class="unit-note">(bending)</span></label>
+            <span id="res-eb" class="result-value-sm" aria-live="polite">—</span>
+          </div>
+        </div>
+        <!-- Scenario MSI inline result -->
+        <div class="msi-result-row hidden" id="msi-result-row"
+             role="group" aria-label="Material selection index" tabindex="0">
+          <div class="msi-tooltip-box" role="tooltip" id="msi-tooltip">
+            <strong>Formula:</strong> <span id="msi-tt-formula">—</span><br/>
+            <span id="msi-tt-eff">—</span><br/>
+            <em>E</em> = effective in-plane modulus (GPa)<br/>
+            <em>ρ</em> = effective density (g/cm³)<br/>
+            <em>σ</em> = allowable stress (MPa, user-supplied)
+          </div>
+          <div class="msi-rv-left">
+            <span class="msi-rv-value" id="msi-main-value">—</span>
+            <span class="msi-rv-formula" id="msi-main-formula">—</span>
+          </div>
+          <div class="msi-rv-right">
+            <span class="msi-rv-scenario" id="msi-rv-scenario">—</span>
+            <span class="msi-rv-units" id="msi-rv-units">—</span>
+          </div>
+        </div>
+      </div><!-- /#results-card -->
+
+      <!-- Ply Summary -->
+      <div class="card table-card" id="summary-card">
+        <h2 class="table-title">Ply Summary</h2>
+        <div class="table-scroll" tabindex="0">
+          <table id="summary-table">
+            <thead>
+              <tr>
+                <th>#</th><th>t (mm)</th><th>θ (°)</th>
+                <th>E₁</th><th>E₂</th><th>G₁₂</th><th>ν₁₂</th><th>ν₂₁</th>
+              </tr>
+            </thead>
+            <tbody id="summary-body"></tbody>
+          </table>
+        </div>
+        <p class="table-empty-hint" id="table-hint">Run the analysis to populate this table.</p>
+      </div>
+
+      <!-- Classic Ashby Indices -->
+      <div class="card" id="msi-card">
+        <div class="section-label">Classic Ashby Indices</div>
+        <div class="msi-inputs">
+          <div class="field-group">
+            <label class="field-label" for="inp-sigf-classic">
+              Tensile Strength σ<sub>f</sub> (MPa)
+            </label>
+            <input id="inp-sigf-classic" type="number" value="1500" step="50" min="0" placeholder="e.g. 1500" />
+          </div>
+        </div>
+        <div class="msi-description">
+          <p>Ashby M₁/M₂/M₃ indices — uses density ρ from step 1. Requires CLT analysis to be run first.</p>
+        </div>
+        <button id="btn-msi" onclick="computeAndShowMSI()">Compute M1 / M2 / M3</button>
+        <div id="msi-output" class="msi-output hidden" aria-live="polite">
+          <div class="msi-row" role="list">
+            <div class="msi-item" role="listitem">
+              <div class="msi-item-info">
+                <span class="msi-label">M₁ — Stiffness / Mass</span>
+                <span class="msi-formula">E<sub>eff</sub><sup>1/3</sup> / ρ</span>
+              </div>
+              <span id="msi-m1" class="msi-value">—</span>
+            </div>
+            <div class="msi-item" role="listitem">
+              <div class="msi-item-info">
+                <span class="msi-label">M₂ — Strength / Mass</span>
+                <span class="msi-formula">σ<sub>f</sub><sup>1/2</sup> / ρ</span>
+              </div>
+              <span id="msi-m2" class="msi-value">—</span>
+            </div>
+            <div class="msi-item" role="listitem">
+              <div class="msi-item-info">
+                <span class="msi-label">M₃ — Flexural Rigidity / Mass</span>
+                <span class="msi-formula">D<sub>x</sub> / (ρ · h³)</span>
+              </div>
+              <span id="msi-m3" class="msi-value">—</span>
+            </div>
+          </div>
+          <p class="msi-note">Higher values indicate greater structural efficiency relative to mass.</p>
+        </div>
+      </div>
+
+      <!-- AI CTA -->
+      <div class="ai-cta-block">
+        <button class="btn-ai-cta" id="btn-get-ai"
+                onclick="goToStep(3); getAISuggestions()">
+          Get AI Material Suggestions →
+        </button>
+        <p class="ai-cta-hint">GPT-powered recommendations based on your D-matrix and Ashby indices</p>
+      </div>
+
+    </section><!-- /#step-2 -->
+
+
+    <!-- ════════════════════════════════════
+         STEP 3 — AI MATCH
+    ════════════════════════════════════ -->
+    <section id="step-3" class="step">
+
+      <div class="step-nav">
+        <button class="btn-step-back" onclick="goToStep(2)">← Results</button>
+        <span class="step-nav-title">AI Material Match</span>
+      </div>
+
+      <div class="card ai-card" id="ai-panel">
+        <div class="section-label">
+          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+               stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <ellipse cx="12" cy="5" rx="9" ry="3"/>
+            <path d="M21 12c0 1.66-4.03 3-9 3S3 13.66 3 12"/>
+            <path d="M3 5v14c0 1.66 4.03 3 9 3s9-1.34 9-3V5"/>
+          </svg>
+          AI Material Recommendations
+        </div>
+        <div id="ai-output" class="ai-output" aria-live="polite">
+          <span class="ai-loading">Querying material database…</span>
+        </div>
+      </div>
+
+    </section><!-- /#step-3 -->
+
+    </div><!-- /.step-container -->
+  </div><!-- /.solver-outer -->
+</main>
+
+<!-- ══════════════════════════════════════
+     FOOTER
+══════════════════════════════════════ -->
+<footer class="site-footer" role="contentinfo">
+  <div class="container footer-inner">
+    <p class="footer-brand">CLT Solver</p>
+    <p class="footer-caption">Classical Laminate Theory · Ashby MSI · AI Material Intelligence</p>
+  </div>
+</footer>
+
+<!-- ══════════════════════════════════════
+     SCRIPTS
+══════════════════════════════════════ -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mathjs/12.4.2/math.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/animejs/3.2.1/anime.min.js"></script>
+<script src="api.js"></script>
+<script src="app.js"></script>
+
+<script>
+/* ─ Particle Canvas (subtle on light bg) ─ */
+(function() {
+  const c   = document.getElementById('app-canvas');
+  const ctx = c.getContext('2d');
+  let W, H, pts = [];
+  function resize() { W = c.width = window.innerWidth; H = c.height = window.innerHeight; }
+  window.addEventListener('resize', resize); resize();
+  const COLS = ['rgba(22,101,52,', 'rgba(15,118,110,', 'rgba(30,58,95,'];
+  for (let i = 0; i < 70; i++) pts.push({
+    x: Math.random()*W, y: Math.random()*H,
+    vx:(Math.random()-.5)*.18, vy:(Math.random()-.5)*.18,
+    r: Math.random()*.9+.2, a: Math.random()*.12+.03,
+    c: COLS[Math.floor(Math.random()*COLS.length)],
+    life: Math.random()*300+100, age: 0
+  });
+  function frame() {
+    ctx.clearRect(0,0,W,H);
+    pts.forEach(p => {
+      p.x += p.vx; p.y += p.vy; p.age++;
+      if(p.age>p.life||p.x<0||p.x>W||p.y<0||p.y>H)
+        Object.assign(p,{x:Math.random()*W,y:Math.random()*H,vx:(Math.random()-.5)*.18,vy:(Math.random()-.5)*.18,age:0,life:Math.random()*300+100});
+      const f=1-p.age/p.life;
+      ctx.beginPath(); ctx.arc(p.x,p.y,p.r,0,Math.PI*2);
+      ctx.fillStyle=p.c+(p.a*f)+')'; ctx.fill();
+    });
+    requestAnimationFrame(frame);
+  }
+  frame();
+})();
+
+/* ─ Entrance animation for step 1 ─ */
+anime({ targets: '.site-header', opacity:[0,1], translateY:[-16,0], duration:600, easing:'easeOutExpo' });
+anime({ targets: '#step-1 .card', opacity:[0,1], translateY:[18,0], duration:480,
+        delay: anime.stagger(55, {start:140}), easing:'easeOutExpo' });
+
+/* ─ Gear Train Visualization ─ */
+window._engAnim = (function () {
+  const el = document.getElementById('eng-canvas');
+  if (!el) return { setMode:()=>{}, updatePlies:()=>{} };
+  const c = el.getContext('2d');
+
+  function resize() {
+    el.width  = el.parentElement.clientWidth  || 270;
+    el.height = el.parentElement.clientHeight || 560;
+  }
+  if (window.ResizeObserver) new ResizeObserver(resize).observe(el.parentElement);
+  window.addEventListener('resize', resize);
+  resize();
+
+  /* ── Gear definitions ───────────────────────────────
+     Module M=5.5 px  →  pitch radius r = N·M/2
+     Tooth counts chosen ODD (N2,N3,N4) so each gear
+     simultaneously presents a tooth at 0° and gap at
+     180° — guarantees clean visual meshing.             */
+  const M = 7.5;
+  const Ω = 0.003;   // input ω (rad / frame) — very slow
+
+  const G = [
+    { N:16, isInput:true  },   // G1  r=60
+    { N:11              },   // G2  r=41.25
+    { N: 9              },   // G3  r=33.75
+    { N: 7, isOutput:true },   // G4  r=26.25
+  ];
+  G.forEach(g => { g.r = g.N * M / 2; });
+
+  /* Initial phase: gives gap at π for each driven gear */
+  G[0].ph = 0;
+  G[1].ph = Math.PI * (G[1].N - 1) / G[1].N;
+  G[2].ph = Math.PI * (G[2].N - 1) / G[2].N;
+  G[3].ph = Math.PI * (G[3].N - 1) / G[3].N;
+
+  /* Angular velocity ratios (relative to G[0] = +1 CW) */
+  G[0].wr =  1;
+  G[1].wr = -G[0].r / G[1].r;
+  G[2].wr =  G[0].r / G[2].r;
+  G[3].wr = -G[0].r / G[3].r;
+
+  let t = 0;
+
+  /* ── Layout ──────────────────────────────────────── */
+  function layout() {
+    /* total width = 2 × Σr  (left edge of G[0] → right edge of G[3]) */
+    const totalW = 2 * G.reduce((s, g) => s + g.r, 0);
+    G[0].cx = (el.width  - totalW) / 2 + G[0].r;
+    G[1].cx = G[0].cx + G[0].r + G[1].r;
+    G[2].cx = G[1].cx + G[1].r + G[2].r;
+    G[3].cx = G[2].cx + G[2].r + G[3].r;
+    G.forEach(g => g.cy = el.height * 0.46);
+  }
+
+  /* ── Draw single gear ────────────────────────────── */
+  function drawGear(g) {
+    const { cx, cy, r, N, ph, wr, isInput } = g;
+    const a  = ph + wr * Ω * t;
+    const ra = r + M * 0.88;      /* tip  radius */
+    const rb = r - M * 1.05;      /* root radius */
+    const hub = Math.max(5, r * 0.28);
+    const tw  = 0.44 * Math.PI / N;  /* half tooth-width  */
+    const rw  = 0.40 * Math.PI / N;  /* half root-width   */
+    const ta  = 0.62 * tw;           /* narrowed tip-width */
+    /* Solid colour palette — one per gear index */
+    const PALETTE = [
+      { body: '#166534', stroke: '#14532d', spoke: '#14532d', hub: '#dcfce7', hubStroke: '#166534', dot: '#f0fdf4' },  // G1 deep green
+      { body: '#1e3a5f', stroke: '#1e3265', spoke: '#1e3a5f', hub: '#dbeafe', hubStroke: '#1e3a5f', dot: '#eff6ff' },  // G2 navy
+      { body: '#0f766e', stroke: '#0c6460', spoke: '#0f766e', hub: '#ccfbf1', hubStroke: '#0f766e', dot: '#f0fdfa' },  // G3 teal
+      { body: '#92400e', stroke: '#7c3009', spoke: '#92400e', hub: '#fef3c7', hubStroke: '#92400e', dot: '#fffbeb' },  // G4 amber
+    ];
+    const gIdx = G.indexOf(g);
+    const P = PALETTE[gIdx] || PALETTE[0];
+
+    c.save();
+    c.translate(cx, cy);
+
+    /* drop shadow */
+    c.shadowBlur    = 12;
+    c.shadowOffsetY = 2;
+    c.shadowColor   = P.body + '55';
+    c.rotate(a);
+
+    /* ── teeth path ── */
+    c.beginPath();
+    for (let i = 0; i < N; i++) {
+      const ba = 2 * Math.PI * i / N;
+      const pts = [
+        [rb, ba-rw], [r, ba-tw], [ra, ba-ta],
+        [ra, ba+ta], [r, ba+tw], [rb, ba+rw],
+      ];
+      pts.forEach(([rr, aa], j) => {
+        const x = rr * Math.cos(aa), y = rr * Math.sin(aa);
+        (i === 0 && j === 0) ? c.moveTo(x, y) : c.lineTo(x, y);
+      });
+    }
+    c.closePath();
+
+    /* solid fill */
+    c.fillStyle = P.body;
+    c.fill();
+
+    c.shadowBlur = 0; c.shadowOffsetY = 0;
+    c.strokeStyle = P.stroke;
+    c.lineWidth   = 1.5;
+    c.stroke();
+
+    /* ── spokes ── */
+    const ns = N <= 8 ? 3 : N <= 12 ? 4 : 5;
+    const sw = Math.max(2, r * 0.09);
+    for (let s = 0; s < ns; s++) {
+      const sa = s * Math.PI * 2 / ns + Math.PI / (2 * ns);
+      c.beginPath();
+      c.moveTo((hub + 2) * Math.cos(sa), (hub + 2) * Math.sin(sa));
+      c.lineTo((rb  - 2) * Math.cos(sa), (rb  - 2) * Math.sin(sa));
+      c.strokeStyle = P.hub;   /* light hub colour for contrast */
+      c.globalAlpha = 0.55;
+      c.lineWidth = sw; c.lineCap = 'round'; c.stroke();
+      c.globalAlpha = 1;
+    }
+
+    /* ── hub ── */
+    c.beginPath(); c.arc(0, 0, hub, 0, Math.PI * 2);
+    c.fillStyle   = P.hub; c.fill();
+    c.strokeStyle = P.hubStroke;
+    c.lineWidth   = 2; c.stroke();
+
+    /* center dot */
+    c.beginPath(); c.arc(0, 0, 2.8, 0, Math.PI * 2);
+    c.fillStyle = P.dot; c.fill();
+
+    c.restore();
+
+    /* ── pitch circle + crosshair (unrotated) ── */
+    c.save(); c.translate(cx, cy);
+    c.beginPath(); c.arc(0, 0, r, 0, Math.PI * 2);
+    c.strokeStyle = P.body + '33'; c.lineWidth = 0.8;
+    c.setLineDash([2, 4]); c.stroke(); c.setLineDash([]);
+
+    const ch = 5;
+    c.strokeStyle = P.body + '55';
+    c.lineWidth = 0.7;
+    [[-ch,0,-2,0],[2,0,ch,0],[0,-ch,0,-2],[0,2,0,ch]].forEach(([x1,y1,x2,y2]) => {
+      c.beginPath(); c.moveTo(x1,y1); c.lineTo(x2,y2); c.stroke();
+    });
+    c.restore();
+  }
+
+  /* ── Render loop ─────────────────────────────────── */
+  function frame() {
+    if (!el.width || !el.height) { resize(); requestAnimationFrame(frame); return; }
+    const W = el.width, H = el.height;
+    c.clearRect(0, 0, W, H);
+
+    /* dot grid — slightly more visible */
+    c.fillStyle = 'rgba(0,0,0,0.055)';
+    for (let x = 16; x < W; x += 22)
+      for (let y = 16; y < H; y += 22) {
+        c.beginPath(); c.arc(x, y, 0.8, 0, Math.PI * 2); c.fill();
+      }
+
+    /* futuristic corner marks — more vivid */
+    [[14,18],[W-14,18],[14,H-18],[W-14,H-18]].forEach(([px, py]) => {
+      const dx = px < W/2 ? 1 : -1, dy = py < H/2 ? 1 : -1;
+      c.strokeStyle = 'rgba(22,101,52,0.45)'; c.lineWidth = 1.5;
+      c.beginPath(); c.moveTo(px, py); c.lineTo(px+dx*12, py); c.stroke();
+      c.beginPath(); c.moveTo(px, py); c.lineTo(px, py+dy*12); c.stroke();
+    });
+
+    layout();
+    const cy = G[0].cy;
+
+    /* shaft center-line */
+    c.strokeStyle = 'rgba(0,0,0,0.055)'; c.lineWidth = 0.5;
+    c.setLineDash([4, 5]);
+    c.beginPath(); c.moveTo(G[0].cx, cy); c.lineTo(G[3].cx, cy); c.stroke();
+    c.setLineDash([]);
+
+    /* mesh-point indicators */
+    for (let i = 0; i < 3; i++) {
+      const mx = G[i].cx + G[i].r;
+      c.beginPath(); c.arc(mx, cy, 1.8, 0, Math.PI * 2);
+      c.fillStyle = 'rgba(22,101,52,0.18)'; c.fill();
+      c.beginPath(); c.arc(mx, cy, 4, 0, Math.PI * 2);
+      c.strokeStyle = 'rgba(22,101,52,0.07)'; c.lineWidth = 0.5; c.stroke();
+    }
+
+    /* pulsing halo around input gear */
+    const ha = 0.08 + 0.05 * Math.sin(t * 0.04);
+    c.save(); c.translate(G[0].cx, cy);
+    c.beginPath(); c.arc(0, 0, G[0].r + M * 1.2, 0, Math.PI * 2);
+    c.strokeStyle = `rgba(22,101,52,${(ha * 2.5).toFixed(3)})`; c.lineWidth = 1.5; c.stroke();
+    c.beginPath(); c.arc(0, 0, G[0].r + M * 2.8, 0, Math.PI * 2);
+    c.strokeStyle = `rgba(22,101,52,${ha.toFixed(3)})`; c.lineWidth = 0.8; c.stroke();
+    c.restore();
+
+    /* draw all gears */
+    G.forEach(drawGear);
+
+    /* labels */
+    c.textAlign = 'center';
+    c.font = '600 8px "Space Mono",monospace';
+    c.fillStyle = '#166534';
+    c.fillText('input',  G[0].cx, G[0].cy + G[0].r + M + 18);
+    c.fillStyle = '#92400e';
+    c.fillText('output', G[3].cx, G[3].cy + G[3].r + M + 18);
+
+    /* gear ratio annotation */
+    c.font = '400 7px "Space Mono",monospace';
+    c.fillStyle = 'rgba(0,0,0,0.30)';
+    c.fillText(`ratio  1 : ${(G[0].r / G[3].r).toFixed(2)}`, W / 2, cy + G[0].r + M + 38);
+
+    t++;
+    requestAnimationFrame(frame);
+  }
+  frame();
+
+  return { setMode(){}, updatePlies(){} };
+})();
+
+</script>
+
+</body>
+</html>
